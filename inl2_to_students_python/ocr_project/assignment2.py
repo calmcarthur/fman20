@@ -60,6 +60,7 @@ def im2segment(im):
 def is_black_and_white(image_array):
     return np.all(np.isin(image_array, [0, 1]))
 
+
 def segment2feature(segment):
     
     # FIRST TRANSLATING EACH SEGMENT TO REMOVE VARIANCE FROM POSITION BASED ON C.O.M
@@ -80,6 +81,8 @@ def segment2feature(segment):
     M = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
     # Built in function suggested online for doing this shift in one clean step
     translated = cv2.warpAffine(segment, M, (segment.shape[1], segment.shape[0]))
+    plt.imshow(translated)
+    plt.show()
 
     # NOW CALCULATING FEATURES AND APPENDING TO LIST
     features = []
@@ -119,16 +122,6 @@ def segment2feature(segment):
     features.extend([top_left, top_right, bottom_left, bottom_right])
     # print("Sum in subregions: ", top_left, top_right, bottom_left, bottom_right)
 
-    # # Feature 6: Sum of pixel values in each row
-    # row_sums = np.sum(segment, axis=1)
-    # features.extend(row_sums)
-    # # print("Sum over each row: ", row_sums)
-
-    # # Feature 7: Sum of pixel values in each column
-    # col_sums = np.sum(segment, axis=0)
-    # features.extend(col_sums)
-    # # print("Sum over each col: ", col_sums)
-
     # Calculate the middle index for rows and columns
     middle_row_index = translated.shape[0] // 2
     middle_col_index = translated.shape[1] // 2
@@ -146,6 +139,8 @@ def segment2feature(segment):
     # Normalizing all at once
     normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
     features_final = normalized_features.reshape(-1, 1)  # Reshape to proper form (transpose)
+
+    print("Here: ", features_final)
 
     return features_final
 
