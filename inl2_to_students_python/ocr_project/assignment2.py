@@ -119,15 +119,29 @@ def segment2feature(segment):
     features.extend([top_left, top_right, bottom_left, bottom_right])
     # print("Sum in subregions: ", top_left, top_right, bottom_left, bottom_right)
 
-    # Feature 6: Sum of pixel values in each row
-    row_sums = np.sum(segment, axis=1)
-    features.extend(row_sums)
-    # print("Sum over each row: ", row_sums)
+    # # Feature 6: Sum of pixel values in each row
+    # row_sums = np.sum(segment, axis=1)
+    # features.extend(row_sums)
+    # # print("Sum over each row: ", row_sums)
 
-    # Feature 7: Sum of pixel values in each column
-    col_sums = np.sum(segment, axis=0)
-    features.extend(col_sums)
-    # print("Sum over each col: ", col_sums)
+    # # Feature 7: Sum of pixel values in each column
+    # col_sums = np.sum(segment, axis=0)
+    # features.extend(col_sums)
+    # # print("Sum over each col: ", col_sums)
+
+    # Calculate the middle index for rows and columns
+    middle_row_index = translated.shape[0] // 2
+    middle_col_index = translated.shape[1] // 2
+
+    # Feature 6: Mean of pixel values in the middle row
+    middle_row_mean = np.mean(translated[middle_row_index, :])
+    features.append(middle_row_mean)
+    # print("Mean of the middle row: ", middle_row_mean)
+
+    # Feature 7: Mean of pixel values in the middle column
+    middle_col_mean = np.mean(translated[:, middle_col_index])
+    features.append(middle_col_mean)
+    # print("Mean of the middle column: ", middle_col_mean)
 
     # Normalizing all at once
     normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
