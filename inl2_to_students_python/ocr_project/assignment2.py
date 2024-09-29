@@ -119,15 +119,15 @@ def segment2feature(segment):
     features.extend([top_left, top_right, bottom_left, bottom_right])
     # print("Sum in subregions: ", top_left, top_right, bottom_left, bottom_right)
 
-    # # Feature 6: Sum of pixel values in each row
-    # row_sums = np.sum(segment, axis=1)
-    # features.extend(row_sums)
-    # # print("Sum over each row: ", row_sums)
+    # Feature 6: Sum of pixel values in each row
+    row_sums = np.sum(segment, axis=1)
+    features.extend(row_sums)
+    # print("Sum over each row: ", row_sums)
 
-    # # Feature 7: Sum of pixel values in each column
-    # col_sums = np.sum(segment, axis=0)
-    # features.extend(col_sums)
-    # # print("Sum over each col: ", col_sums)
+    # Feature 7: Sum of pixel values in each column
+    col_sums = np.sum(segment, axis=0)
+    features.extend(col_sums)
+    # print("Sum over each col: ", col_sums)
 
     # Normalizing all at once
     normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
