@@ -10,29 +10,54 @@ import scipy
 import numpy as np
 from sklearn.model_selection import train_test_split
 from scipy.spatial import distance
+import matplotlib.pyplot as plt
 
-# NEAREST NEIGHBOUR CLASSIFICATION
 def class_train(X, Y):
+    # Nearest neighbour classification so no training needed
     classification_data = {
-        'X_train': X,  # Store the training feature vectors
-        'Y_train': Y   # Store the corresponding labels
+        'X_features': X,
+        'Y_labels': Y
     }
     return classification_data
 
-# Function to classify using nearest neighbor method
 def classify(x, classification_data):
-    X_train = classification_data['X_train']
-    Y_train = classification_data['Y_train']
+    X_train = classification_data['X_features']
+    Y_train = classification_data['Y_labels']
     
-    # Calculate Euclidean distances from test point x to all training points
+    # Calculate Euclidean distances with scipy distance function
+    # Change x to be a row vector with reshape
     distances = distance.cdist(X_train, x.reshape(1, -1), 'euclidean')
+    # print(distances.shape)
     
-    # Find the index of the nearest neighbor
-    nearest_neighbor_idx = np.argmin(distances)
+    # Get index
+    nearest_neighbor_index = np.argmin(distances)
     
-    # Return the label of the nearest neighbor
-    return Y_train[nearest_neighbor_idx]
+    return Y_train[nearest_neighbor_index]
 
+def test_impemenetation(X,Y):
+    # Reshape into proper 19x19 images, need to transpose
+    image_0 = np.reshape(X[0], (19, 19)).T
+    image_4 = np.reshape(X[4], (19, 19)).T
+
+    plt.figure(figsize=(5, 3))
+
+    # Image 1
+    plt.subplot(1, 2, 1)
+    plt.imshow(image_0, cmap='gray')
+    plt.title('Face Image (Correctly Classified)')
+    plt.axis('off')
+
+    # Image 2
+    plt.subplot(1, 2, 2)
+    plt.imshow(image_4, cmap='gray')
+    plt.title('Non-Face Image (Correctly Classified)]')
+    plt.axis('off')
+
+    plt.show()
+
+    print(classify(X[0], class_train(X, Y)))
+    print(classify(X[4], class_train(X, Y)))
+    return None
 
 if __name__ == "__main__":
     # load data, change datadir path if your data is elsewhere
@@ -42,6 +67,8 @@ if __name__ == "__main__":
     Y = data['Y'].transpose()  # Transpose to match X dimensions
     nbr_examples = np.size(Y, 0)
     
+    test_impemenetation(X,Y)
+
     # This outer loop will run 100 times, so that you get a mean error for your
     # classifier (the error will become different each time due to the
     # randomness of train_test_split, which you may verify if you wish).
