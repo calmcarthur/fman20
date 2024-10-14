@@ -11,14 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage import morphology
 from skimage.feature import hog
-from skimage.measure import moments_central, moments_hu
 import cv2  # For SIFT and ORB
-from scipy.fftpack import fft2
 from skimage.measure import label, regionprops
-from skimage.morphology import convex_hull_image
 from benchmarking.benchmark_assignment3 import benchmark_assignment3
-import skimage
 from scipy.spatial import distance
+import time
 
 
 def im2segment(im):
@@ -82,8 +79,7 @@ def segment2feature(segment):
     features.append(top_heaviness)
 
     # Feature 3: Right-heaviness (right half pixel sum / total pixel sum)
-    width = translated.shape[1]
-    right_heaviness = np.sum(translated[:, width//2:]) / np.sum(translated)
+    right_heaviness = np.sum(translated[:, translated.shape[1]//2:]) / np.sum(translated)
     features.append(right_heaviness)
 
     # Feature 4: Number of holes (connected components in inverted image)
@@ -91,54 +87,22 @@ def segment2feature(segment):
     num_holes, _ = cv2.connectedComponents(inverted_segment)
     features.append(num_holes)
 
-    # Feature 5: Holes inverse (1 / number of holes)
-    holes_inverse = 1 / num_holes
-    features.append(holes_inverse)
-
-    # Feature 6: Sum of pixel values in four quadrants
-    half_h, half_w = height // 2, width // 2
-    top_left = np.sum(translated[:half_h, :half_w])
-    top_right = np.sum(translated[:half_h, half_w:])
-    bottom_left = np.sum(translated[half_h:, :half_w])
-    bottom_right = np.sum(translated[half_h:, half_w:])
-    features.extend([top_left, top_right, bottom_left, bottom_right])
-
-    # Feature 7: Vertical symmetry (symmetric pixels along the y-axis)
+    # Feature 5: Vertical symmetry (symmetric pixels along the y-axis)
     vertical_symmetry = np.sum(translated == np.flip(translated, axis=0)) / translated.size
     features.append(vertical_symmetry)
 
-    # Feature 8: Horizontal symmetry (symmetric pixels along the x-axis)
+    # Feature 6: Horizontal symmetry (symmetric pixels along the x-axis)
     horizontal_symmetry = np.sum(translated == np.flip(translated, axis=1)) / translated.size
     features.append(horizontal_symmetry)
 
-    # Feature 9: Mean of pixel values in the middle row
-    middle_row_mean = np.mean(translated[translated.shape[0] // 2, :])
-    features.append(middle_row_mean)
+    # Feature 7: Hu Moments (7 moments)
+    moments = cv2.HuMoments(cv2.moments(translated)).flatten()
+    features.extend(moments)
+    
 
-    # Feature 10: Mean of pixel values in the middle column
-    middle_col_mean = np.mean(translated[:, translated.shape[1] // 2])
-    features.append(middle_col_mean)
-
-    # Feature 11: Division after erosion (1 / number of connected components after erosion)
-    eroded = cv2.erode(translated.astype(np.uint8), None, iterations=1)
-    num_components, _ = cv2.connectedComponents(eroded)
-    division_after_erosion = 1 / num_components
-    features.append(division_after_erosion)
-
-    # Feature 12: Aspect ratio of the bounding box (width / height)
-    x, y, w, h = cv2.boundingRect(np.column_stack((columns, rows)))
-    box_aspect_ratio = w / h
-    features.append(box_aspect_ratio)
-
-    # Feature 13: Area cover (pixel sum / bounding box area)
-    area_cover_total = np.sum(segment) / (w * h)
-    features.append(area_cover_total)
-
-    # Feature 14: Area to convex hull ratio (pixel sum / convex hull area)
-    convex_hull = cv2.convexHull(np.column_stack((columns, rows)))
-    convex_area = cv2.contourArea(convex_hull)
-    area_convex_ratio = np.sum(segment) / convex_area
-    features.append(area_convex_ratio)
+    # Feature 8: HOG (Histogram of Oriented Gradients)
+    fd, _ = hog(translated, orientations=9, pixels_per_cell=(2, 2), cells_per_block=(6, 6), visualize=True)
+    features.extend(fd[:100000])
 
     # Normalize all features together
     features = np.array(features)
@@ -173,7 +137,8 @@ def class_train(X, Y):
     return classification_data
 
 if __name__ == "__main__": 
-    
+
+    start_time = time.time()
     # Choose dataset
     datadir = os.path.join('datasets','short1')  # Which folder of examples are you going to test it on?
     # datadir = os.path.join('datasets','home1')  # Which folder of examples are you going to test it on?
@@ -206,4 +171,8 @@ if __name__ == "__main__":
    
     hitrate,confmat,allres,alljs,alljfg,allX,allY = benchmark_assignment3(im2segment, segment2feature, feature2class,classification_data,datadir,mode)
     print('Hitrate = ' + str(hitrate*100) + '%')
+
+    end_time = time.time()
+    print(end_time - start_time)
+
 
