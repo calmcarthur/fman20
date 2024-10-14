@@ -58,164 +58,96 @@ def im2segment(im):
 
     return segments
 
-
-# def segment2feature(segment):
-    
-#     # FIRST TRANSLATING EACH SEGMENT TO REMOVE VARIANCE FROM POSITION BASED ON C.O.M
-#     # Returns tuple with indices of non-zero elements
-#     rows, columns = np.nonzero(segment) 
-
-#     # x corresponds to columns
-#     center_of_mass_x = np.mean(columns)
-#     # y corresponds to rows
-#     center_of_mass_y = np.mean(rows)
-
-#     # Take overall size and divide by two then subtract the centre of mass to get shift index
-#     shift_x = (segment.shape[1] // 2) - center_of_mass_x
-#     shift_y = (segment.shape[0] // 2) - center_of_mass_y
-
-#     # 0 axis is shifting by rows
-#     # 1 axis is shifting by columns
-#     M = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
-#     # Built in function suggested online for doing this shift in one clean step
-#     translated = cv2.warpAffine(segment, M, (segment.shape[1], segment.shape[0]))
-#     # plt.imshow(translated)
-#     # plt.show()
-
-#     # NOW CALCULATING FEATURES AND APPENDING TO LIST
-#     features = []
-
-#     # Feature 1: Corners with Harris
-#     # corners = corner_peaks(corner_harris(translated), min_distance=1)
-#     # corner_count = len(corners)
-#     # features.append(corner_count)
-#     # # print("Corners: ", corner_count)
-
-#     # Feature 2: Scale-Invariant Feature Transform
-#     sift = cv2.SIFT_create()
-#     keypoints, _ = sift.detectAndCompute(translated.astype('uint8') * 255, None)
-#     sift_keypoint_count = len(keypoints)
-#     features.append(sift_keypoint_count)
-#     # print("SIFT: ", sift_keypoint_count)
-
-#     # Feature 3: Histogram of oriented gradients
-#     hog_feature, _ = hog(translated, pixels_per_cell=(8, 8), cells_per_block=(2, 2), visualize=True)
-#     hog_sum = np.sum(hog_feature)
-#     features.append(hog_sum)
-#     # print("Histogram of oriented gradients: ", hog_sum)
-
-#     # Feature 4: Central Moments to calculate Hu moments
-#     c_moments = moments_central(translated)
-#     hu_moments = moments_hu(c_moments)
-#     features.extend(hu_moments)
-#     # print("Hu Moments: ", hu_moments)
-
-#     # Feature 5: Sum of pixel values in subregions
-#     height, width = translated.shape
-#     half_h, half_w = height // 2, width // 2
-#     top_left = np.sum(translated[:half_h, :half_w])
-#     top_right = np.sum(translated[:half_h, half_w:])
-#     bottom_left = np.sum(translated[half_h:, :half_w])
-#     bottom_right = np.sum(translated[half_h:, half_w:])
-#     features.extend([top_left, top_right, bottom_left, bottom_right])
-#     # print("Sum in subregions: ", top_left, top_right, bottom_left, bottom_right)
-
-#     # Calculate the middle index for rows and columns
-#     middle_row_index = translated.shape[0] // 2
-#     middle_col_index = translated.shape[1] // 2
-
-#     # Feature 6: Mean of pixel values in the middle row
-#     middle_row_mean = np.mean(translated[middle_row_index, :])
-#     features.append(middle_row_mean)
-#     # print("Mean of the middle row: ", middle_row_mean)
-
-#     # Feature 7: Mean of pixel values in the middle column
-#     middle_col_mean = np.mean(translated[:, middle_col_index])
-#     features.append(middle_col_mean)
-#     # print("Mean of the middle column: ", middle_col_mean)
-
-#     # Normalizing all at once
-#     normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
-#     features_final = normalized_features.reshape(-1, 1)  # Reshape to proper form (transpose)
-
-#     return features_final
-
 def segment2feature(segment):
-    
-    # FIRST TRANSLATING EACH SEGMENT TO REMOVE VARIANCE FROM POSITION BASED ON C.O.M
+    # Translate segment to center based on center of mass (C.O.M)
     rows, columns = np.nonzero(segment)
-
     center_of_mass_x = np.mean(columns)
     center_of_mass_y = np.mean(rows)
 
+    # Calculate the shift in x and y directions to align with the center
     shift_x = (segment.shape[1] // 2) - center_of_mass_x
     shift_y = (segment.shape[0] // 2) - center_of_mass_y
 
+    # Perform the translation using a transformation matrix
     M = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
     translated = cv2.warpAffine(segment, M, (segment.shape[1], segment.shape[0]))
 
     features = []
 
-    # Feature 1: Skeleton on perimeter ratio
-    perimeter = np.sum(segment[:, 0]) + np.sum(segment[:, -1]) + np.sum(segment[0, :]) + np.sum(segment[-1, :])
-    skeleton = np.sum(translated)  # Simplified skeleton approximation as non-zero elements
-    skeleton_perimeter_ratio = skeleton / perimeter
-    features.append(skeleton_perimeter_ratio)
+    # Feature 1: Image width (number of columns with non-zero pixels)
+    width = np.sum(np.any(translated, axis=0))
+    features.append(width)
 
-    # Feature 2: Area on convex hull ratio
-    convex_hull = cv2.convexHull(np.column_stack((columns, rows)))
-    convex_area = cv2.contourArea(convex_hull)
-    area_convex_ratio = np.sum(segment) / convex_area
-    features.append(area_convex_ratio)
+    # Feature 2: Top-heaviness (upper half pixel sum / total pixel sum)
+    height = translated.shape[0]
+    top_heaviness = np.sum(translated[:height//2]) / np.sum(translated)
+    features.append(top_heaviness)
 
-    # Feature 3: Bounding box width/height ratio
-    x, y, w, h = cv2.boundingRect(np.column_stack((columns, rows)))
-    box_aspect_ratio = w / h
-    features.append(box_aspect_ratio)
+    # Feature 3: Right-heaviness (right half pixel sum / total pixel sum)
+    width = translated.shape[1]
+    right_heaviness = np.sum(translated[:, width//2:]) / np.sum(translated)
+    features.append(right_heaviness)
 
-    # Feature 4: Center of mass (x and y) position relative to the bounding box
-    cMassXPos = center_of_mass_x / w
-    cMassYPos = center_of_mass_y / h
-    features.append(cMassXPos)
-    features.append(cMassYPos)
+    # Feature 4: Number of holes (connected components in inverted image)
+    inverted_segment = cv2.bitwise_not(translated)
+    num_holes, _ = cv2.connectedComponents(inverted_segment)
+    features.append(num_holes)
 
-    # Feature 5: Area covered by the image in the bounding box (normalized)
-    area_cover_total = np.sum(segment) / (w * h)
-    features.append(area_cover_total)
+    # Feature 5: Holes inverse (1 / number of holes)
+    holes_inverse = 1 / num_holes
+    features.append(holes_inverse)
 
-    # Feature 6: Area covered in each of the four corners of the bounding box
-    upper_left = np.sum(translated[:h//2, :w//2]) / (w//2 * h//2)
-    upper_right = np.sum(translated[:h//2, w//2:]) / (w//2 * h//2)
-    lower_left = np.sum(translated[h//2:, :w//2]) / (w//2 * h//2)
-    lower_right = np.sum(translated[h//2:, w//2:]) / (w//2 * h//2)
-    features.extend([upper_left, upper_right, lower_left, lower_right])
+    # Feature 6: Sum of pixel values in four quadrants (Top-left, Top-right, Bottom-left, Bottom-right)
+    half_h, half_w = height // 2, width // 2
+    top_left = np.sum(translated[:half_h, :half_w])
+    top_right = np.sum(translated[:half_h, half_w:])
+    bottom_left = np.sum(translated[half_h:, :half_w])
+    bottom_right = np.sum(translated[half_h:, half_w:])
+    features.extend([top_left, top_right, bottom_left, bottom_right])
 
-    # Feature 7: Division after erosion (inverse of the number of connected components after erosion)
+    # Feature 7: Vertical symmetry (symmetric pixels along the y-axis)
+    vertical_symmetry = np.sum(translated == np.flip(translated, axis=0)) / translated.size
+    features.append(vertical_symmetry)
+
+    # Feature 8: Horizontal symmetry (symmetric pixels along the x-axis)
+    horizontal_symmetry = np.sum(translated == np.flip(translated, axis=1)) / translated.size
+    features.append(horizontal_symmetry)
+
+    # Feature 9: Mean of pixel values in the middle row
+    middle_row_mean = np.mean(translated[translated.shape[0] // 2, :])
+    features.append(middle_row_mean)
+
+    # Feature 10: Mean of pixel values in the middle column
+    middle_col_mean = np.mean(translated[:, translated.shape[1] // 2])
+    features.append(middle_col_mean)
+
+    # Feature 11: Division after erosion (1 / number of connected components after erosion)
     eroded = cv2.erode(translated.astype(np.uint8), None, iterations=1)
     num_components, _ = cv2.connectedComponents(eroded)
     division_after_erosion = 1 / num_components
     features.append(division_after_erosion)
 
-    # Feature 8: Holes inverse (inverse of number of holes in the image)
-    inverted_segment = cv2.bitwise_not(translated)
-    num_holes, _ = cv2.connectedComponents(inverted_segment)
-    holes_inverse = 1 / num_holes
-    features.append(holes_inverse)
+    # Feature 12: Aspect ratio of the bounding box (width / height)
+    x, y, w, h = cv2.boundingRect(np.column_stack((columns, rows)))
+    box_aspect_ratio = w / h
+    features.append(box_aspect_ratio)
 
-    # Feature 9: Horizontal symmetry rate (rate of symmetric pixels along the x-axis)
-    horizontal_symmetry = np.sum(translated == np.flip(translated, axis=1)) / translated.size
-    features.append(horizontal_symmetry)
+    # Feature 13: Area cover (pixel sum / bounding box area)
+    area_cover_total = np.sum(segment) / (w * h)
+    features.append(area_cover_total)
 
-    # Feature 10: Vertical symmetry rate (rate of symmetric pixels along the y-axis)
-    vertical_symmetry = np.sum(translated == np.flip(translated, axis=0)) / translated.size
-    features.append(vertical_symmetry)
+    # Feature 14: Area to convex hull ratio (pixel sum / convex hull area)
+    convex_hull = cv2.convexHull(np.column_stack((columns, rows)))
+    convex_area = cv2.contourArea(convex_hull)
+    area_convex_ratio = np.sum(segment) / convex_area
+    features.append(area_convex_ratio)
 
-    # Normalizing all at once
-    normalized_features = (np.array(features) - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
-    features_final = normalized_features.reshape(-1, 1)  # Reshape to proper form
+    # Normalize all features together
+    features = np.array(features)
+    normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)  # Normalize all at once
 
-    return features_final
-
+    # Return final normalized feature array
+    return normalized_features.reshape(-1, 1)
 
 def feature2class(x, classification_data):
     X_train = classification_data['X_features']
@@ -233,6 +165,7 @@ def feature2class(x, classification_data):
 
     return Y_train[nearest_neighbor_index]
 
+
 def class_train(X, Y):
     # Nearest neighbour classification so no training needed
     classification_data = {
@@ -244,9 +177,8 @@ def class_train(X, Y):
 if __name__ == "__main__": 
     
     # Choose dataset
-    
-    # datadir = os.path.join('datasets','short1')  # Which folder of examples are you going to test it on?
-    datadir = os.path.join('datasets','home1')  # Which folder of examples are you going to test it on?
+    datadir = os.path.join('datasets','short1')  # Which folder of examples are you going to test it on?
+    # datadir = os.path.join('datasets','home1')  # Which folder of examples are you going to test it on?
 
     # Loading training data
     segment_train = np.load('ocrsegmentdata.npy')
