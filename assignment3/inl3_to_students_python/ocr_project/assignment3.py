@@ -10,16 +10,14 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from skimage import morphology
-
-# part 2
-from skimage.feature import corner_harris, corner_peaks
 from skimage.feature import hog
 from skimage.measure import moments_central, moments_hu
 import cv2  # For SIFT and ORB
+from scipy.fftpack import fft2
 from skimage.measure import label, regionprops
+from skimage.morphology import convex_hull_image
 from benchmarking.benchmark_assignment3 import benchmark_assignment3
-
-# part 3
+import skimage
 from scipy.spatial import distance
 
 
@@ -97,7 +95,7 @@ def segment2feature(segment):
     holes_inverse = 1 / num_holes
     features.append(holes_inverse)
 
-    # Feature 6: Sum of pixel values in four quadrants (Top-left, Top-right, Bottom-left, Bottom-right)
+    # Feature 6: Sum of pixel values in four quadrants
     half_h, half_w = height // 2, width // 2
     top_left = np.sum(translated[:half_h, :half_w])
     top_right = np.sum(translated[:half_h, half_w:])
@@ -144,7 +142,7 @@ def segment2feature(segment):
 
     # Normalize all features together
     features = np.array(features)
-    normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)  # Normalize all at once
+    normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
 
     # Return final normalized feature array
     return normalized_features.reshape(-1, 1)
