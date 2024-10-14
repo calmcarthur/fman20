@@ -9,7 +9,7 @@ Created on Fri Feb 23 10:51:35 2024
 
 # put the WB_sRGB where you run your code or add path to it
 import sys
-sys.path.append('/path/to/thirdparty/code/WB_sRGB/WB_sRGB_Python/') 
+sys.path.append('./WB_sRGB/WB_sRGB_Python/') 
 
 # also you can copy the models directory from WB_sRGB to where you run this code
 # for easy access
