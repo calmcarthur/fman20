@@ -148,7 +148,7 @@ if __name__ == '__main__':
     
     
     
-    # No we turn to our real problem
+    # Now we turn to our real problem
     # Fix things below that are missing
     
 
@@ -162,65 +162,51 @@ if __name__ == '__main__':
 
     
     # calculate means and stadard deviations
-    
-    # m_chamber = ?
-    # s_chamber =  ?
-    # m_background = ? 
-    # s_background = ?
-    
+    m_chamber = np.mean(data_chamber)
+    s_chamber = np.std(data_chamber)
+    m_background = np.mean(data_background)
+    s_background = np.std(data_background)
+    print("Esimated Mean Chamber: ", m_chamber)
+    print("Esimated SD Chamber: ", s_chamber)
+    print("Esimated Mean Background: ", m_background)
+    print("Esimated SD Background: ", m_background)
    
-
-    # setup edge structure and regularization terms
-    
-    n = M*N # number of pixels
-        
+    # setup edge structure and regularization terms     
     Ie,Je = edges4connected(M,N)
     # Ie,Je = edges8connected(M,N)
     
     # Decide how important a short curve length is:    
-    # lam = ?
+    lam = 1
     # what should the weights on the edges be?
-    # Ve = ?
+    Ve = lam * np.ones_like(Ie)
     
     # setup data terms to source s and sink t:
-    
     Is1 = np.arange(n)
     Js1 = (n)*np.ones((n,))
     Is2 = (n)*np.ones((n,))
     Js2 = np.arange(n)
     
-    # what shoould the weights be to the source? They depend on image and means and 
-    # standard deviations 
-    # Vs = ?
-    # Vs = (im.flatten()-m_chamber)*(im.flatten()-m_chamber) for standard weighting without statistical weight
-    
+    # Computing negative log-likelihoods for each pixel based on Gaussian distributions
+    Vs = (im.flatten() - m_chamber) ** 2 / (2 * s_chamber ** 2)
+    Vt = (im.flatten() - m_background) ** 2 / (2 * s_background ** 2)
     
     It1 = np.arange(n)
     Jt1 = (n+1)*np.ones((n,))
     It2 = (n+1)*np.ones((n,))
     Jt2 = np.arange(n)
     
-    # what shoould the weights be to the sink? They depend on image and means and 
-    # standard deviations 
-    # Vt = ?
-    # Vt = (im.flatten()-m_background)*(im.flatten()-m_background) for standard weighting without statistical weight
-   
-  
-    
-
     # setup graph, discretize since maxflow algorithm only works on int
     I = np.hstack((Ie,Is1,Is2,It1,It2)).astype(np.int32)
     J = np.hstack((Je,Js1,Js2,Jt1,Jt2)).astype(np.int32)
     V = np.hstack((Ve,Vs,Vs,Vt,Vt))
     
     # we have real values but multiply with large number and round
-    sf = 10000
+    sf = 1000
     V = np.round(V*sf).astype(np.int32) 
 
     # setup sparse graph matrix
     F = sparse.coo_array((V,(I,J)),shape=(n+2,n+2)).tocsr()
   
-    
     # find flow and segmentation
     mf = maximum_flow(F, n, n+1)
 
@@ -229,7 +215,8 @@ if __name__ == '__main__':
     imflow = seg[0:n,n+1].reshape((M,N)).toarray().astype(float)
     imseg = imflow<(V[-n:].astype(float).reshape(M,N)) # segmentation based on flow
    
-    plt.imshow(imseg) # show segmentation
+    plt.imshow(np.hstack((im,imseg))) # show segmentation
+    plt.show()
     
     
     
