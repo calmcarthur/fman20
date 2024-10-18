@@ -11,14 +11,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage import morphology
 from skimage.feature import hog
-import cv2
+import cv2  # For SIFT and ORB
 from skimage.measure import label, regionprops
 from benchmarking.benchmark_assignment3 import benchmark_assignment3
 from scipy.spatial import distance
 import time
-from skimage import morphology
-from skimage.feature import local_binary_pattern
-from skimage.transform import radon
 
 
 def im2segment(im):
@@ -56,137 +53,71 @@ def im2segment(im):
 
     return segments
 
-def segment2feature(segment, n_coeffs=20):
-    # Translate segment to center based on center of mass (C.O.M)
-    rows, columns = np.nonzero(segment)
-    center_of_mass_x = np.mean(columns)
-    center_of_mass_y = np.mean(rows)
+def segment2feature(segment):
+    # Resize all segments to a fixed size (e.g., 64x64) to ensure uniform HOG feature dimensions
 
-    # Calculate the shift in x and y directions to align with the center
-    shift_x = (segment.shape[1] // 2) - center_of_mass_x
-    shift_y = (segment.shape[0] // 2) - center_of_mass_y
-
-    # Perform the translation using a transformation matrix
-    M = np.float32([[1, 0, shift_x], [0, 1, shift_y]])
-    translated = cv2.warpAffine(segment, M, (segment.shape[1], segment.shape[0]))
+    fixed_size = (300, 300)
+    resized_segment = cv2.resize(segment, fixed_size)
 
     features = []
 
     # Feature 1: Image width (number of columns with non-zero pixels)
-    width = np.sum(np.any(translated, axis=0))
+    width = np.sum(np.any(resized_segment, axis=0))
     features.append(width)
 
     # Feature 2: Top-heaviness (upper half pixel sum / total pixel sum)
-    height = translated.shape[0]
-    top_heaviness = np.sum(translated[:height//2]) / np.sum(translated)
+    height = resized_segment.shape[0]
+    top_heaviness = np.sum(resized_segment[:height//2]) / np.sum(resized_segment)
     features.append(top_heaviness)
 
     # Feature 3: Right-heaviness (right half pixel sum / total pixel sum)
-    right_heaviness = np.sum(translated[:, translated.shape[1]//2:]) / np.sum(translated)
+    right_heaviness = np.sum(resized_segment[:, resized_segment.shape[1]//2:]) / np.sum(resized_segment)
     features.append(right_heaviness)
 
     # Feature 4: Number of holes (connected components in inverted image)
-    inverted_segment = cv2.bitwise_not(translated)
+    inverted_segment = cv2.bitwise_not(resized_segment)
     num_holes, _ = cv2.connectedComponents(inverted_segment)
     features.append(num_holes)
 
     # Feature 5: Vertical symmetry (symmetric pixels along the y-axis)
-    vertical_symmetry = np.sum(translated == np.flip(translated, axis=0)) / translated.size
+    vertical_symmetry = np.sum(resized_segment == np.flip(resized_segment, axis=0)) / resized_segment.size
     features.append(vertical_symmetry)
 
     # Feature 6: Horizontal symmetry (symmetric pixels along the x-axis)
-    horizontal_symmetry = np.sum(translated == np.flip(translated, axis=1)) / translated.size
+    horizontal_symmetry = np.sum(resized_segment == np.flip(resized_segment, axis=1)) / resized_segment.size
     features.append(horizontal_symmetry)
 
     # Feature 7: Hu Moments (7 moments)
-    moments = cv2.HuMoments(cv2.moments(translated)).flatten()
+    moments = cv2.HuMoments(cv2.moments(resized_segment)).flatten()
     features.extend(moments)
 
-    # Feature 9: Bounding box aspect ratio
-    min_row, min_col, max_row, max_col = cv2.boundingRect(np.column_stack(np.where(translated > 0)))
-    aspect_ratio = (max_row - min_row) / (max_col - min_col) if (max_col - min_col) > 0 else 0
-    features.append(aspect_ratio)
-
-    # Feature 10: Histogram of pixel intensities
-    histogram, _ = np.histogram(translated, bins=10, range=(0, 1))
-    features.extend(histogram)
-
-    # Feature 11: Contour perimeter and area
-    contours, _ = cv2.findContours(translated.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if contours:
-        perimeter = cv2.arcLength(contours[0], True)
-        area = cv2.contourArea(contours[0])
-        features.append(perimeter)
-        features.append(area)
-
-    # Feature 12: Local Binary Pattern (LBP) Histogram
-    radius = 1
-    n_points = 8 * radius
-    lbp = local_binary_pattern(translated, n_points, radius, method='uniform')
-    lbp_hist = np.histogram(lbp.ravel(), bins=np.arange(0, 59), range=(0, 58))[0]
-    features.extend(lbp_hist)
-
-    # Feature 13: Radial Symmetry (using Radon transform)
-    theta = np.linspace(0., 180., max(translated.shape), endpoint=False)
-    sinogram = radon(translated, theta=theta)
-    radial_symmetry = np.sum(np.var(sinogram, axis=0))
-    features.append(radial_symmetry)
-
-    # Feature 14: Compactness
-    perimeter = cv2.arcLength(contours[0], True) if contours else 0
-    area = cv2.contourArea(contours[0]) if contours else 0
-    compactness = perimeter ** 2 / (4 * np.pi * area) if area > 0 else 0
-    features.append(compactness)
-
-    # Feature 15: Centroid distance from border
-    dist_from_border = min(min(min_row, translated.shape[0] - max_row), min(min_col, translated.shape[1] - max_col))
-    features.append(dist_from_border)
-
-    # Feature 17: Skeletonization features (e.g., number of skeleton pixels)
-    skeleton = morphology.skeletonize(translated)
-    num_skeleton_pixels = np.sum(skeleton)
-    features.append(num_skeleton_pixels)
-
-    # Feature 18: Run-Length Encoding (RLE) - Number of runs (horizontal)
-    rle = []
-    prev_pixel = translated[0, 0]
-    run_length = 1
-    for i in range(1, translated.shape[1]):
-        if translated[0, i] == prev_pixel:
-            run_length += 1
-        else:
-            rle.append(run_length)
-            prev_pixel = translated[0, i]
-            run_length = 1
-    rle.append(run_length)
-    features.append(len(rle))
+    # Feature 8: HOG (Histogram of Oriented Gradients)
+    fd, _ = hog(resized_segment, orientations=9, pixels_per_cell=(6, 6), cells_per_block=(2, 2), visualize=True)
+    features.extend(fd)
 
     # Normalize all features together
     features = np.array(features)
     normalized_features = (features - np.min(features)) / (np.max(features) - np.min(features) + 1e-8)
 
+    # Return final normalized feature array
     return normalized_features.reshape(-1, 1)
 
-
-def feature2class(x, classification_data, k=5):
+def feature2class(x, classification_data):
     X_train = classification_data['X_features']
     Y_train = classification_data['Y_labels']
     
     # Calculate Euclidean distances with scipy distance function
+    # Change x to be a row vector with reshape
     distances = distance.cdist(X_train, x.reshape(1, -1), 'euclidean')
+    # print(distances.shape)
     
-    # Get the indices of the k nearest neighbors
-    nearest_neighbor_indices = np.argsort(distances, axis=0)[:k].flatten()
+    # Get index
+    nearest_neighbor_index = np.argmin(distances)
+ 
     Y_train = Y_train.reshape(-1,1)
 
-    # Get the labels of the k nearest neighbors
-    nearest_labels = Y_train[nearest_neighbor_indices]
-    
-    # Count the most frequent label among the k neighbors
-    unique, counts = np.unique(nearest_labels, return_counts=True)
-    
-    # Return the label with the highest count
-    return unique[np.argmax(counts)]
+    return Y_train[nearest_neighbor_index]
+
 
 def class_train(X, Y):
     # Nearest neighbour classification so no training needed
